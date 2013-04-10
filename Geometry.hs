@@ -1,3 +1,4 @@
+module Geometry where
 
 import Data.Vect.Double
 import Data.List (permutations,or,minimumBy)
@@ -7,9 +8,10 @@ import Control.Monad (guard)
 class Intersectable a where
 	intersection :: a -> Ray -> Maybe (Vec3,Vec3)
 
-data Triangle = Triangle Vec3 Vec3 Vec3 deriving Show
-data Plane = Plane Vec3 Normal3 deriving Show
 data Ray = Ray Vec3 Vec3 deriving Show
+data Plane = Plane Vec3 Normal3 deriving Show
+data Triangle = Triangle Vec3 Vec3 Vec3 deriving Show
+data Box = Box Vec3 Vec3 deriving Show
 
 eps :: Double
 eps = 0.000001 -- adjust this as needed
@@ -46,3 +48,26 @@ instance Intersectable Triangle where
 		(x,n) <- intersection (Plane a (normal t)) r
 		guard $ inside (vertices t) x
 		return (x,n)
+
+instance Intersectable Box where
+	intersection (Box l u) r
+		| null ts = Nothing
+		| otherwise = Just $ minimumBy d ts'
+		where
+			between (Vec3 lx ly lz)
+			        (Vec3 ux uy uz)
+					(Vec3 pz py pz) =
+				lx < px && px < ux &&
+				ly < py && py < uy &&
+				lz < pz && pz < uz
+
+			ts = catMaybes [
+				intersection (Plane l (-1,0,0)) r,
+				intersection (Plane l (0,-1,0)) r,
+				intersection (Plane l (0,0,1)) r,
+				intersection (Plane u (1,0,0)) r,
+				intersection (Plane u (0,1,0)) r,
+				intersection (Plane u (0,0,-1)) r,
+			]
+			ts' = filter (\(x,_) -> between l u x) ts
+			d (a,_) (b,_) = compare (dist a o) (dist b o)
