@@ -5,8 +5,11 @@ import Data.List (permutations,or,minimumBy)
 import Data.Maybe (mapMaybe,isJust,catMaybes)
 import Control.Monad (guard)
 
+instance Eq Vec3 where
+	(Vec3 a b c) == (Vec3 x y z) = a == x && b == y && c == z
+
 class Intersectable a where
-	intersection :: a -> Ray -> Maybe (Vec3,Vec3)
+	intersection :: a -> Ray -> Maybe (Vec3,Normal3)
 
 data Ray = Ray Vec3 Normal3 deriving Show
 data Plane = Plane Vec3 Normal3 deriving Show
@@ -41,10 +44,10 @@ inside (Box (Vec3 lx ly lz) (Vec3 ux uy uz)) (Vec3 px py pz) =
 
 instance Intersectable Plane where
 	intersection (Plane p u) (Ray o d)
-		| epsilon $ n &. (o &- p) = Just (o,n) -- along the plane
+		| epsilon $ n &. (o &- p) = Just (o,u) -- along the plane
 		| epsilon $ n &. (fromNormal d) = Nothing -- parellel to plane
 		| t < eps = Nothing -- can't intersect behind the ray
-		| otherwise = Just (o &+ (fromNormalRadius t d), n)
+		| otherwise = Just (o &+ (fromNormalRadius t d), u)
 			where
 				n = fromNormal u
 				t = ((n &. p) - (n &. o)) / (n &. (fromNormal d))

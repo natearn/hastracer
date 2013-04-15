@@ -1,107 +1,136 @@
 module Raytracer where
 
-import Codec.Picture -- PNG encoding
-import Codec.Picture.Types -- PNG encoding
-import Algebra
+import Data.Vect.Double
+import Geometry
 import Octree
 import Data.List (permutations,or,minimumBy,foldl')
 import Data.Maybe (mapMaybe,isJust,isNothing,fromJust)
+import Codec.Picture -- PNG encoding
+import Codec.Picture.Types -- PNG encoding
 
-type Colour = (Double,Double,Double) -- treat like vector
-type Light = (Point,Colour) -- don't care about drop-off
-data Material = Phong { diffuse :: Colour, specular :: Colour, shininess :: Double }
+type Colour = Vec3
+data Light = Point Vec3 Colour
+data Material = Phong Colour Colour Double
               | Reflection
-              | Texture (Point -> Material)
+              | Texture (Vec3 -> Material)
 
 instance Show Material where
 	show (Texture _) = "Texture"
 	show Reflection  = "Reflection"
 	show (Phong a b c) = "Phong " ++ unwords [show a,show b,show c]
 
-data Object = Object (Octree Triangle) Material
-data Scene = Scene Point Object [Scene] -- no support for rotation or scaling right now
+data Object a = Object a Material
 
-instance Intersectable Object where
-	intersection (Object t m) r = intersection t r
+-- no support for rotation or scaling right now
+data Scene a = Scene Vec3 (Object a) [Scene a]
 
 -- Colour operations
 
-prod :: Colour -> Colour -> Colour
-prod (a,b,c) (x,y,z) = (a*x,b*y,c*z)
-
 toPixel :: Colour -> PixelRGBF
-toPixel (r,g,b) = PixelRGBF (f r) (f g) (f b)
+toPixel (Vec3 r g b) = PixelRGBF (f r) (f g) (f b)
 	where f = realToFrac
 
-phongLighting :: Point -> Point -> Material -> Vector -> [Light] -> Colour -> Colour
-phongLighting p e (Phong kd ks shin) n ls amb = foldl' combine (kd `prod` amb) ls
+-- https://en.wikipedia.org/wiki/Phong_lighting
+phongLighting :: Vec3
+	-> Vec3
+	-> Material
+	-> Normal3
+	-> [Light]
+	-> Colour
+	-> Colour
+phongLighting p e (Phong kd ks shin) n ls amb =
+	foldl' combine (kd &! amb) ls
 	where
-	combine :: Colour -> Light -> Colour -- https://en.wikipedia.org/wiki/Phong_lighting
-	combine col (lp, lc) = col `add` ((l `dot` n) `mult` (kd `prod` lc)) `add` (((r `dot` v) ** shin) `mult` (ks `prod` lc))
+	combine :: Colour -> Light -> Colour
+	combine col (Point lp lc) =
+		col &+ ((l &. n') *& (kd &! lc)) &+ (((r &. v) ** shin) *& (ks &! lc))
 		where
-		l = normalize $ lp `sub` p -- unit vector from point to light
-		r = ((2 * (l `dot` n)) `mult` n) `sub` l -- light reflection vector
-		v = normalize $ e `sub` p -- unit vector from point to eye
+		v = normalize $ e &- p -- direction from point to eye
+		l = normalize $ lp &- p -- direction from point to light
+		r = reflect n l
+		n' = fromNormal n
 
 -- Ray tracing functions
 
-calcRay :: Point -> Vector -> Vector -> Double -> Int -> Int -> Int -> Int -> Ray
-calcRay eye view up fov width height x y = (eye,dir)
+calcRay :: Vec3
+	-> Normal3
+	-> Normal3
+	-> Double
+	-> Int
+	-> Int
+	-> Int
+	-> Int
+	-> Ray
+calcRay eye view up fov width height x y = Ray eye dir
 	where
-		d = fromIntegral
+		x' = fromIntegral x
+		y' = fromIntegral y
+		w' = fromIntegral width
+		h' = fromIntegral height
 		dist = 100 :: Double
-		pl = dist * tan (fov/2) / (d height/2)
-		nr = normalize $ view `cross` up
-		nv = normalize view
-		nu = normalize up
-		tl = eye `add` (dist `mult` nv) `add` ((d width / 2 * pl * (-1)) `mult` nr) `add` ((d height / 2 * pl) `mult` nu) -- top-left point of screen
-		dir = normalize $ tl `add` ((d x * pl) `mult` nr) `add` ((d y * pl * (-1)) `mult` nu) `sub` eye
+		pl = dist * tan (fov/2) / (h'/2)
+		nv = fromNormal view
+		nu = fromNormal up
+		nr = nv &^ nu
+		-- top-left point of screen
+		tl = eye &+
+			(dist *& nv) &+
+			((w'/2 * pl * (-1)) *& nr) &+
+			((h'/2 * pl) *& nu)
+		dir = mkNormal $
+			tl &+ ((x' * pl) *& nr) &+ ((y' * pl * (-1)) *& nu) &- eye
 
-searchScene :: Scene -> Ray -> Maybe ((Point,Vector),Object)
-searchScene (Scene pos obj subs) (eye,dir)
-	| isJust x = let (p,q) = fromJust x in Just ((p `add` pos,q),obj)
-	| null ys  = Nothing
-	| otherwise = Just $ minimumBy d ys
+searchScene :: (Intersectable a)
+	=> Scene a
+	-> Ray
+	-> Maybe (Vec3,Normal3,Material)
+searchScene (Scene pos (Object v mat) subs) (Ray eye dir) =
+	maybe trysubs (\(x,d) -> Just (x,d,mat)) (intersection v ray)
 	where
-		r = (eye `sub` pos,dir)
-		x = intersection obj r
-		ys = mapMaybe (flip searchScene r) subs
-		d ((a,_),_) ((b,_),_) = compare (dist a eye) (dist b eye)
+		ray = Ray (eye &- pos) dir
+		trysubs = if null res then Nothing else Just $ minimumBy comp res
+		res = mapMaybe (flip searchScene ray) subs
+		comp (a,_,_) (b,_,_) = compare (distance a eye) (distance b eye)
 
 -- top-level ray cast, handles intersection and colour calculation
-castRay :: Ray         -- ray
-	-> Scene           -- scene
-	-> [Light]         -- point lights
-	-> Colour          -- ambient lighting
-	-> Int             -- reflection limit
-	-> Colour          -- pixel value
-castRay r@(eye,dir) s ls amb lim = maybe background lighting (searchScene s r)
+castRay :: (Intersectable a)
+	=> Ray     -- ray
+	-> Scene a -- scene
+	-> [Light] -- point lights
+	-> Colour  -- ambient lighting
+	-> Int     -- reflection limit
+	-> Colour  -- pixel value
+castRay r@(Ray eye dir) s ls amb lim = maybe background lighting (searchScene s r)
 	where
-		background = (0.1,0.1,0.2) -- will want to paramterize this for things like skyboxes
-		f x = filter (\(l,_) -> isNothing $ searchScene s (x,normalize $ l `sub` x))
-		lighting ((p,n),(Object _ m@(Phong _ _ _))) = phongLighting p eye m n (f p ls) amb
-		lighting ((p,n),(Object _ Reflection))
-			| lim == 0 = background
-			-- | otherwise = castRay (p,reflect dir n) s ls amb (lim-1)
-			| otherwise = (0.1 `mult` amb) `add` (0.9 `mult` castRay (p,reflect dir n) s ls amb (lim-1))
-		lighting ((p,n),(Object o (Texture tmap))) = lighting $ ((p,n),(Object o (tmap p)))
+	-- will want to paramterize background for things like skyboxes
+	background = Vec3 0.1 0.1 0.2
+	f x = filter (\(Point l _) -> isNothing $ searchScene s (Ray x (mkNormal $ l &- x)))
+	lighting (p,n,(Texture tmap)) = lighting $ (p,n,tmap p)
+	lighting (p,n,m@(Phong _ _ _)) = phongLighting p eye m n (f p ls) amb
+	lighting (p,n,Reflection)
+		| lim == 0 = background
+		| otherwise = castRay (Ray p (mkNormal (reflect n (fromNormal dir)))) s ls amb (lim-1)
 
-render :: Point        -- eye
-	-> Vector          -- viewing direction
-	-> Vector          -- the up direction
+render :: (Intersectable a)
+	=> Vec3            -- eye
+	-> Normal3         -- viewing direction
+	-> Normal3         -- the up direction
 	-> Double          -- field of view (radians)
 	-> Int             -- horizontal resolution (width)
 	-> Int             -- vertical resolution (height)
-	-> Scene           -- scene
+	-> Scene a         -- scene
 	-> [Light]         -- point lights
 	-> Colour          -- ambient light
 	-> Int             -- reflection limit
 	-> String          -- output file name
 	-> IO ()
-render eye view up fov width height scene lights ambient limit name = savePngImage name (ImageRGBF image)
+render eye view up fov width height scene lights ambient limit name =
+	savePngImage name (ImageRGBF image)
 	where
-		image = generateImage ray width height
-		ray x y = toPixel $ castRay (calcRay eye view up fov width height x y) scene lights ambient limit
+		image = generateImage cast width height
+		cast x y = toPixel $ castRay (ray x y) scene lights ambient limit
+		ray x y = calcRay eye view up fov width height x y
+{-
 
 
 -- showing off my octree to get credit for Objective 1
@@ -136,3 +165,4 @@ renderOctree eye view up fov width height scene name = savePngImage name (ImageR
 	where
 		image = generateImage ray width height
 		ray x y = toPixel $ octreeRay (calcRay eye view up fov width height x y) scene
+-}

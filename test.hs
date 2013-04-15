@@ -1,24 +1,23 @@
 module Main where
 
-import Raytracer
+import Data.Vect.Double
+import Geometry
 import Octree
-import Algebra
+import Raytracer
 import Control.Applicative ((<$>))
 import Text.ParserCombinators.Parsec (parse)
 import qualified STL
-import Sphere
-import Texture
 
 convert :: STL.Triangle Double -> Triangle
 convert (STL.Triangle n a b c) = Triangle (f a) (f b) (f c)
 	where
-		f (STL.Vector x y z) = Vertex (x,y,z) []
+		f (STL.Vector x y z) = Vec3 x y z
 
 load :: FilePath -> IO (Octree Triangle)
 load file = handle =<< (parse STL.stl_file file <$> readFile file)
 	where
 		handle (Left msg) = error $ show msg
-		handle (Right list) = return $ buildOctree (map convert list)
+		handle (Right list) = return $ fst $ buildOctree (map convert list)
 
 dump :: FilePath -> IO ([Triangle])
 dump file = handle =<< (parse STL.stl_file file <$> readFile file)
@@ -28,27 +27,24 @@ dump file = handle =<< (parse STL.stl_file file <$> readFile file)
 
 -- parameters
 (xres,yres) = (256,256)
-view = (0,0,-1) :: Vector
-up =  (0,1,0) :: Vector
---eye = (0,0,100) :: Point
---lights = [ ((-2,-2,1),(1,1,1)),((2,2,1),(1,1,1)) ]
---lights = [ ((2,2,1),(1,1,1)) ]
+view = mkNormal $ Vec3 0 0 (-1)
+up =  mkNormal $ Vec3 0 1 0
 fov = pi * (2/3) -- 120 degrees
-amb = (0.3,0.3,0.3) :: Colour
+amb = Vec3 0.3 0.3 0.3
 limit = 2 :: Int
-divisions = 4 :: Int
 
 main = handle =<< (parse STL.stl_file "(stdin)" <$> getContents)
 	where
 		handle (Left msg) = putStrLn $ "Error: " ++ show msg
-		--handle (Right list) = render eye view up fov xres yres scn lights amb limit "test.png"
-		handle (Right list) = renderOctree eye view up fov xres yres scn "octree.png"
+		handle (Right list) =
+			render eye view up fov xres yres scn lights amb limit "test.png"
+		--handle (Right list) = renderOctree eye view up fov xres yres scn "octree.png"
 			where
-				tree = buildOctree $ map convert list
-				eye = (\(Box l u) -> (0,0,dist u l / 2)) $ bounds tree
-				lights = [ (eye `add` (2,2,1),(1,1,1)) ]
-				obj = Object tree (Phong (0.8,0.8,0.5) (0.8,0.8,0.5) 25)
-				scn = Scene (-0.1,0,0) obj []
+				(tree,failures) = buildOctree $ map convert list
+				eye = (\(Box l u) -> Vec3 0 0 ((distance u l)/2)) $ bounds tree
+				lights = [ Point (eye &+ (Vec3 2 2 1)) (Vec3 1 1 1) ]
+				obj = Object tree (Phong (Vec3 0.8 0.8 0.5) (Vec3 0.8 0.8 0.5) 25)
+				scn = Scene (Vec3 (-0.1) 0 0) obj []
 {-
 -}
 

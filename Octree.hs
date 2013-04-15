@@ -81,7 +81,7 @@ instance (Intersectable a) => Intersectable (Octree a) where
 		| otherwise = Just $ minimumBy (\a b -> compare (dist a) (dist b)) res
 		where
 			res = mapMaybe (flip intersection r) $ searchOctree o r
-			dist (x,_) = norm $ x &- p
+			dist (x,_) = distance x p
 
 -- remember failures, fill the tree with the triangles that fit
 buildOctree :: [Triangle] -> (Octree Triangle,[Triangle])
