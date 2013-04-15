@@ -105,11 +105,12 @@ castRay r@(Ray eye dir) s ls amb lim = maybe background lighting (searchScene s 
 	-- will want to paramterize background for things like skyboxes
 	background = Vec3 0.1 0.1 0.2
 	f x = filter (\(Point l _) -> isNothing $ searchScene s (Ray x (mkNormal $ l &- x)))
+	refl n d = mkNormal $ reflect n (neg $ fromNormal d)
 	lighting (p,n,(Texture tmap)) = lighting $ (p,n,tmap p)
 	lighting (p,n,m@(Phong _ _ _)) = phongLighting p eye m n (f p ls) amb
 	lighting (p,n,Reflection)
 		| lim == 0 = background
-		| otherwise = castRay (Ray p (mkNormal (reflect n (fromNormal dir)))) s ls amb (lim-1)
+		| otherwise = castRay (Ray p (refl n dir)) s ls amb (lim-1)
 
 render :: (Intersectable a)
 	=> Vec3            -- eye
