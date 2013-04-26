@@ -12,11 +12,13 @@ type Colour = Vec3
 data Light = Point Vec3 Colour
 data Material = Phong Colour Colour Double
               | Reflection
+              | Bump
               | Texture (Vec3 -> Material)
 
 instance Show Material where
-	show (Texture _) = "Texture"
-	show Reflection  = "Reflection"
+	show (Texture _)   = "Texture"
+	show Reflection    = "Reflection"
+	show Bump          = "Bump"
 	show (Phong a b c) = "Phong " ++ unwords [show a,show b,show c]
 
 data Object a = Object a Material
@@ -42,9 +44,13 @@ phongLighting p e (Phong kd ks shin) n ls amb =
 	foldl' combine (kd &! amb) ls
 	where
 	combine :: Colour -> Light -> Colour
-	combine col (Point lp lc) =
-		col &+ ((l &. n') *& (kd &! lc)) &+ (((r &. v) ** shin) *& (ks &! lc))
+	combine col (Point lp lc)
+		| l &. n' < 0 = col
+		| r &. v < 0 = col &+ df
+		| otherwise  = col &+ df &+ ds
 		where
+		df = ((l &. n') *& (kd &! lc))
+		ds = (((r &. v) ** shin) *& (ks &! lc))
 		v = normalize $ e &- p -- direction from point to eye
 		l = normalize $ lp &- p -- direction from point to light
 		r = reflect n l
@@ -100,17 +106,18 @@ castRay :: (Intersectable a)
 	-> Colour  -- ambient lighting
 	-> Int     -- reflection limit
 	-> Colour  -- pixel value
-castRay r@(Ray eye dir) s ls amb lim = maybe background lighting (searchScene s r)
+castRay r@(Ray e d) s ls amb lim = maybe background lighting (searchScene s r)
 	where
 	-- will want to paramterize background for things like skyboxes
 	background = Vec3 0.1 0.1 0.2
 	f x = filter (\(Point l _) -> isNothing $ searchScene s (Ray x (mkNormal $ l &- x)))
 	refl n d = mkNormal $ reflect n (neg $ fromNormal d)
+	lighting (p,n,m@(Phong _ _ _)) = phongLighting p e m n (f p ls) amb
 	lighting (p,n,(Texture tmap)) = lighting $ (p,n,tmap p)
-	lighting (p,n,m@(Phong _ _ _)) = phongLighting p eye m n (f p ls) amb
+	lighting (_,n,Bump) = fromNormal n
 	lighting (p,n,Reflection)
 		| lim == 0 = background
-		| otherwise = castRay (Ray p (refl n dir)) s ls amb (lim-1)
+		| otherwise = castRay (Ray p (refl n d)) s ls amb (lim-1)
 
 render :: (Intersectable a)
 	=> Vec3            -- eye
