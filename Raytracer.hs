@@ -138,39 +138,3 @@ render eye view up fov width height scene lights ambient limit name =
 		image = generateImage cast width height
 		cast x y = toPixel $ castRay (ray x y) scene lights ambient limit
 		ray x y = calcRay eye view up fov width height x y
-{-
-
-
--- showing off my octree to get credit for Objective 1
-
-probeScene :: Scene -> Ray -> Maybe (Point,Int)
-probeScene (Scene pos (Object t _) subs) (eye,dir)
-	| isJust x = fmap (\(p,d) -> (p `add` pos,d)) x
-	| null ys  = Nothing
-	| otherwise = Just $ minimumBy d ys
-	where
-		r = (eye `sub` pos,dir)
-		x = probeOctree t r
-		ys = mapMaybe (flip probeScene r) subs
-		d (a,_) (b,_) = compare (dist a eye) (dist b eye)
-
-octreeRay :: Ray -> Scene -> Colour
-octreeRay r@(eye,dir) s = maybe background colouring (probeScene s r)
-	where
-		background = (0.1,0.1,0.2)
-		colouring (_,d) = mult (fromIntegral d) $ (0.1,0,0)
-
-renderOctree :: Point  -- eye
-	-> Vector          -- viewing direction
-	-> Vector          -- the up direction
-	-> Double          -- field of view (radians)
-	-> Int             -- horizontal resolution (width)
-	-> Int             -- vertical resolution (height)
-	-> Scene           -- scene
-	-> String          -- output file name
-	-> IO ()
-renderOctree eye view up fov width height scene name = savePngImage name (ImageRGBF image)
-	where
-		image = generateImage ray width height
-		ray x y = toPixel $ octreeRay (calcRay eye view up fov width height x y) scene
--}

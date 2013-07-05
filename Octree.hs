@@ -5,11 +5,6 @@ import Geometry
 import Data.Maybe (mapMaybe,isJust,isNothing,fromMaybe,listToMaybe)
 import Data.List (minimumBy,foldl',mapAccumR)
 
-{-
-import Debug.Trace
-traceAlong x = traceShow x x
--}
-
 data Octree a = Octree { bounds :: Box, objects :: [a], subtrees :: [Octree a] }
 
 -- Box operations
@@ -89,15 +84,3 @@ buildOctree ts = foldl' fun (Octree mbox [] [],[]) ts
 	where
 		fun (o,fs) t = maybe (o,t:fs) (\x -> (x,fs)) (insertOctree o t)
 		mbox = minBox $ concatMap vertices ts
-
-{-
--- scan the octree but don't intersect the triangles
-probeOctree :: Octree a -> Ray -> Maybe (Point,Int)
-probeOctree (Octree b _ subs) r
-	| isNothing x = Nothing
-	| isNothing y = fmap (\(p,n) -> (p,0)) x
-	| otherwise   = fmap (\(p,d) -> (p,d+1)) y
-	where
-		x = intersection b r
-		y = listToMaybe $ mapMaybe (flip probeOctree r) subs
--}
