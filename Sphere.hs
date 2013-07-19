@@ -58,5 +58,3 @@ golf res = foldl' adjust ball controls
 		controls = map ((1 + (divit/2)) *&) $ concatMap vertices (sphere 4)
 		ball = sphere res
 		adjust ts c = map (\t -> align t c divit) ts
-		
-
