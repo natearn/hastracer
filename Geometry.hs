@@ -15,6 +15,7 @@ data Ray = Ray Vec3 Normal3 deriving Show
 data Plane = Plane Vec3 Normal3 deriving Show
 data Triangle = Triangle Vec3 Vec3 Vec3 deriving Show
 data Box = Box Vec3 Vec3 deriving Show
+data Sphere = Sphere Vec3 Double deriving Show
 
 eps :: Double
 eps = 0.000001 -- adjust this as needed
@@ -73,3 +74,21 @@ instance Intersectable Box where
 				]
 			ts' = filter (\(x,_) -> inside b x) ts
 			f (a,_) (b,_) = compare (norm $ a &- o) (norm $ b &- o)
+
+instance Intersectable Sphere where
+	intersection (Sphere c r) (Ray o l) =
+		fmap (\v -> (v,mkNormal $ v &- c)) $ fmap (\d -> o &+ (fromNormalRadius d l)) $ fmap (\(m,n) -> minimum [m,n]) $ quadroot qa qb qc
+		where
+			v = fromNormal l
+			qa = v &. v
+			qb = 2 * (v &. (o &- c))
+			qc = ((o &- c) &. (o &- c)) - (r^2)
+
+quadroot a b c
+	| d < 0 = Nothing
+	| otherwise = Just (x,y)
+	where
+		x = e + sqrt d / (2 * a)
+		y = e - sqrt d / (2 * a)
+		d = b ^ 2 - (4 * a * c)
+		e = - b / (2 * a)
