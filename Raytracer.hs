@@ -8,8 +8,11 @@ import Data.Maybe (mapMaybe,isJust,isNothing,fromJust)
 import Codec.Picture -- PNG encoding
 import Codec.Picture.Types -- PNG encoding
 
+import Debug.Trace
+traceAlong x = traceShow x x
+
 type Colour = Vec3
-data Light = Point Vec3 Colour
+data Light = Point Vec3 Colour deriving Show
 data Material = Phong Colour Colour Double
               | Reflection
               | Bump
@@ -21,7 +24,7 @@ instance Show Material where
 	show Bump          = "Bump"
 	show (Phong a b c) = "Phong " ++ unwords [show a,show b,show c]
 
-data Object a = Object a Material
+data Object a = Object a Material deriving Show
 
 -- no support for rotation or scaling right now
 data Scene a = Scene Vec3 (Object a) [Scene a]
@@ -113,6 +116,7 @@ castRay r@(Ray e d) s ls amb lim = maybe background lighting (searchScene s r)
 	f x = filter (\(Point l _) -> isNothing $ searchScene s (Ray x (mkNormal $ l &- x)))
 	refl n d = mkNormal $ reflect n (neg $ fromNormal d)
 	lighting (p,n,m@(Phong _ _ _)) = phongLighting p e m n (f p ls) amb
+	--lighting (p,n,m@(Phong _ _ _)) = phongLighting p e m n ls amb
 	lighting (p,n,(Texture tmap)) = lighting $ (p,n,tmap p)
 	lighting (_,n,Bump) = fromNormal n
 	lighting (p,n,Reflection)
