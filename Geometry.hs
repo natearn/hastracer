@@ -44,7 +44,7 @@ inside (Box (Vec3 lx ly lz) (Vec3 ux uy uz)) (Vec3 px py pz) =
 
 instance Intersectable Plane where
 	intersection (Plane p u) (Ray o d)
-		| epsilon $ n &. (o &- p) = Just (o,u) -- along the plane
+		-- | epsilon $ n &. (o &- p) = Just (o,u) -- already on the plane
 		| epsilon $ n &. (fromNormal d) = Nothing -- parellel to plane
 		| t < eps = Nothing -- can't intersect behind the ray
 		| otherwise = Just (o &+ (fromNormalRadius t d), u)
