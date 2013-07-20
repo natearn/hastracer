@@ -27,7 +27,8 @@ instance Show Material where
 data Object a = Object a Material deriving Show
 
 -- no support for rotation or scaling right now
-data Scene a = Scene Vec3 (Object a) [Scene a]
+-- ideally Scene has: transformations, object, child scenes
+data Scene a = Scene Vec3 (Object a) [Scene a] deriving Show
 
 -- Colour operations
 
@@ -116,7 +117,6 @@ castRay r@(Ray e d) s ls amb lim = maybe background lighting (searchScene s r)
 	f x = filter (\(Point l _) -> isNothing $ searchScene s (Ray x (mkNormal $ l &- x)))
 	refl n d = mkNormal $ reflect n (neg $ fromNormal d)
 	lighting (p,n,m@(Phong _ _ _)) = phongLighting p e m n (f p ls) amb
-	--lighting (p,n,m@(Phong _ _ _)) = phongLighting p e m n ls amb
 	lighting (p,n,(Texture tmap)) = lighting $ (p,n,tmap p)
 	lighting (_,n,Bump) = fromNormal n
 	lighting (p,n,Reflection)
