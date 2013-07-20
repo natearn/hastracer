@@ -77,12 +77,19 @@ instance Intersectable Box where
 
 instance Intersectable Sphere where
 	intersection (Sphere c r) (Ray o l) =
-		fmap (\v -> (v,mkNormal $ v &- c)) $ fmap (\d -> o &+ (fromNormalRadius d l)) $ fmap (\(m,n) -> minimum [m,n]) $ quadroot qa qb qc
+		fmap (\v -> (v,mkNormal $ v &- c)) $ fmap (\d -> o &+ (fromNormalRadius d l)) $ isect =<< quadroot qa qb qc
 		where
 			v = fromNormal l
 			qa = v &. v
 			qb = 2 * (v &. (o &- c))
 			qc = ((o &- c) &. (o &- c)) - (r^2)
+
+			-- this calculates the closest intersection distance that is greater than epsilon
+			isect (x,y)
+				| x < eps && y < eps = Nothing
+				| x < eps            = Just y
+				| y < eps            = Just x
+				| otherwise          = Just (minimum [x,y])
 
 quadroot a b c
 	| d < 0 = Nothing
