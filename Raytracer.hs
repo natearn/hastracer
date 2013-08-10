@@ -4,7 +4,7 @@ import Data.Vect.Double
 import Geometry
 import Octree
 import Data.List (permutations,or,minimumBy,foldl')
-import Data.Maybe (mapMaybe,isJust,isNothing,fromJust)
+import Data.Maybe (mapMaybe,isJust,isNothing,fromJust,listToMaybe)
 import Codec.Picture -- PNG encoding
 import Codec.Picture.Types -- PNG encoding
 
@@ -24,11 +24,13 @@ instance Show Material where
 	show Bump          = "Bump"
 	show (Phong a b c) = "Phong " ++ unwords [show a,show b,show c]
 
+-- better name would be nice
 data Object a = Object a Material deriving Show
 
 -- no support for rotation or scaling right now
 -- ideally Scene has: transformations, object, child scenes
-data Scene a = Scene Vec3 (Object a) [Scene a] deriving Show
+--data Scene a = Scene (Object a) [Scene a] deriving Show
+type Scene a = [Object a]
 
 -- Colour operations
 
@@ -90,17 +92,14 @@ calcRay eye view up fov width height x y = Ray eye dir
 		dir = mkNormal $
 			tl &+ ((x' * pl) *& nr) &+ ((y' * pl * (-1)) *& nu) &- eye
 
+-- TODO: determine the best hit instead of the first hit
 searchScene :: (Intersectable a)
 	=> Scene a
 	-> Ray
 	-> Maybe (Vec3,Normal3,Material)
-searchScene (Scene pos (Object v mat) subs) (Ray eye dir) =
-	maybe trysubs (\(x,d) -> Just (x,d,mat)) (intersection v ray)
+searchScene scn ray = listToMaybe $ mapMaybe (withMat ray) scn
 	where
-		ray = Ray (eye &- pos) dir
-		trysubs = if null res then Nothing else Just $ minimumBy comp res
-		res = mapMaybe (flip searchScene ray) subs
-		comp (a,_,_) (b,_,_) = compare (distance a eye) (distance b eye)
+	withMat r (Object g m) = (\(i,n) -> Just (i,n,m)) =<< intersection g r
 
 -- top-level ray cast, handles intersection and colour calculation
 castRay :: (Intersectable a)
@@ -123,6 +122,7 @@ castRay r@(Ray e d) s ls amb lim = maybe background lighting (searchScene s r)
 		| lim == 0 = background
 		| otherwise = castRay (Ray p (refl n d)) s ls amb (lim-1)
 
+-- render the scene to a png file
 render :: (Intersectable a)
 	=> Vec3            -- eye
 	-> Normal3         -- viewing direction
