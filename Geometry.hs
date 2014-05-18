@@ -83,7 +83,6 @@ instance Intersectable Sphere where
 			qa = v &. v
 			qb = 2 * (v &. (o &- c))
 			qc = ((o &- c) &. (o &- c)) - (r^2)
-
 			-- this calculates the closest intersection distance that is greater than epsilon
 			isect (x,y)
 				| x < eps && y < eps = Nothing
@@ -91,6 +90,7 @@ instance Intersectable Sphere where
 				| y < eps            = Just x
 				| otherwise          = Just (minimum [x,y])
 
+--find the roots of a quadratic polynomial
 quadroot a b c
 	| d < 0 = Nothing
 	| otherwise = Just (x,y)
