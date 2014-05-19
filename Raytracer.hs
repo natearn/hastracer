@@ -7,6 +7,12 @@ import Data.List (permutations,or,minimumBy,foldl')
 import Data.Maybe (mapMaybe,isJust,isNothing,fromJust,listToMaybe)
 import Codec.Picture -- PNG encoding
 import Codec.Picture.Types -- PNG encoding
+import Data.Int
+
+import Graphics.UI.SDL as SDL
+import Graphics.UI.SDL.Primitives as SDL.Primitives
+import System.Environment
+import System.Exit
 
 import Debug.Trace
 traceAlong x = traceShow x x
@@ -142,3 +148,40 @@ render eye view up fov width height scene lights ambient limit name =
 		image = generateImage cast width height
 		cast x y = toPixel $ castRay (ray x y) scene lights ambient limit
 		ray x y = calcRay eye view up fov width height x y
+
+-- render the scene to the screen
+renderScreen :: (Intersectable a)
+	=> Vec3        -- eye
+	-> Normal3     -- viewing direction
+	-> Normal3     -- the up direction
+	-> Double      -- field of view (radians)
+	-> Int         -- horizontal resolution (width)
+	-> Int         -- vertical resolution (height)
+	-> Scene a     -- scene
+	-> [Light]     -- point lights
+	-> Colour      -- ambient light
+	-> Int         -- reflection limit
+	-> String      -- output file name
+	-> IO ()
+renderScreen eye view up fov width height scene lights ambient limit name = withInit [InitVideo] $ do
+		screen <- setVideoMode width height 32 [SWSurface]
+		setCaption "hastracer" ""
+		enableUnicode True
+		surface <- createRGBSurfaceEndian [SWSurface] width height 32
+		cast surface 0 0
+		blitSurface surface Nothing screen (Just (Rect 0 0 0 0))
+		SDL.flip screen
+		event <- waitEvent
+		return ()
+	where
+		ray x y = calcRay eye view up fov width height x y
+		cast s x y
+			| y >= height = return ()
+			| x >= width = cast s 0 (y+1)
+			| otherwise = do
+				p <- mapRGB (surfaceGetPixelFormat s) r g b
+				pixel s (fromIntegral x) (fromIntegral y) p
+				cast s (x+1) y
+			where
+				(Vec3 d e f) = castRay (ray x y) scene lights ambient limit
+				[r,g,b] = map (round . (* 255.0)) [d,e,f]
