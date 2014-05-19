@@ -168,20 +168,40 @@ renderScreen eye view up fov width height scene lights ambient limit name = with
 		setCaption "hastracer" ""
 		enableUnicode True
 		surface <- createRGBSurfaceEndian [SWSurface] width height 32
-		cast surface 0 0
-		blitSurface surface Nothing screen (Just (Rect 0 0 0 0))
-		SDL.flip screen
-		event <- waitEvent
-		return ()
+		cast surface
+		loop (display surface)
 	where
+		display surface = do
+			screen <- getVideoSurface
+			blitSurface surface Nothing screen Nothing
+			SDL.flip screen
+
+		handleEvents = do
+			event <- pollEvent
+			case event of
+				Quit -> exitWith ExitSuccess
+				KeyDown (Keysym _ _ 'q') -> exitWith ExitSuccess
+				NoEvent -> return ()
+				_ -> handleEvents
+
+		loop render = do
+			event <- waitEvent
+			case event of
+				Quit -> exitWith ExitSuccess
+				KeyDown (Keysym _ _ 'q') -> exitWith ExitSuccess
+				_ -> return ()
+			render
+			loop render
+
+		cast surface = mapM_ (castRow surface) [0..(height-1)]
+		castRow surface y = mapM_ (castCell surface y) [0..(width-1)]
+		castCell surface y x = do
+			handleEvents
+			let (Vec3 r g b) = castRay (ray x y) scene lights ambient limit
+			let [r',g',b'] = map (round . (* 255.0)) [r,g,b]
+			pval <- mapRGB (surfaceGetPixelFormat surface) r' g' b'
+			pixel surface (fromIntegral x) (fromIntegral y) pval
+			display surface
+
 		ray x y = calcRay eye view up fov width height x y
-		cast s x y
-			| y >= height = return ()
-			| x >= width = cast s 0 (y+1)
-			| otherwise = do
-				p <- mapRGB (surfaceGetPixelFormat s) r g b
-				pixel s (fromIntegral x) (fromIntegral y) p
-				cast s (x+1) y
-			where
-				(Vec3 d e f) = castRay (ray x y) scene lights ambient limit
-				[r,g,b] = map (round . (* 255.0)) [d,e,f]
+
