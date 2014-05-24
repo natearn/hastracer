@@ -20,5 +20,5 @@ s1 = Sphere (Vec3 0 0 0) 1
 s2 = Sphere (Vec3 (-10) (-10) (-30)) 20
 scn = [(Object s1 m1),(Object s2 m2)]
 
---main = rendereye view up fov xres yres scn lights amb limit "sphere-scene.png"
+--main = rendereye view up fov xres yres scn lights amb limit "test.png"
 main = renderScreen eye view up fov xres yres scn lights amb limit
