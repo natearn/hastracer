@@ -10,7 +10,6 @@ import Codec.Picture.Types -- PNG encoding
 import Data.Int
 
 import Graphics.UI.SDL as SDL
-import Graphics.UI.SDL.Primitives as SDL.Primitives
 import System.Environment
 import System.Exit
 
@@ -161,20 +160,15 @@ renderScreen :: (Intersectable a)
 	-> [Light]     -- point lights
 	-> Colour      -- ambient light
 	-> Int         -- reflection limit
-	-> String      -- output file name
 	-> IO ()
-renderScreen eye view up fov width height scene lights ambient limit name = withInit [InitVideo] $ do
+renderScreen eye view up fov width height scene lights ambient limit = withInit [InitVideo] $ do
 		screen <- setVideoMode width height 32 [SWSurface]
 		setCaption "hastracer" ""
 		enableUnicode True
 		surface <- createRGBSurfaceEndian [SWSurface] width height 32
 		cast surface
-		loop (display surface)
+		loop (handleEvents)
 	where
-		display surface = do
-			screen <- getVideoSurface
-			blitSurface surface Nothing screen Nothing
-			SDL.flip screen
 
 		handleEvents = do
 			event <- pollEvent
@@ -199,9 +193,10 @@ renderScreen eye view up fov width height scene lights ambient limit name = with
 			handleEvents
 			let (Vec3 r g b) = castRay (ray x y) scene lights ambient limit
 			let [r',g',b'] = map (round . (* 255.0)) [r,g,b]
-			pval <- mapRGB (surfaceGetPixelFormat surface) r' g' b'
-			pixel surface (fromIntegral x) (fromIntegral y) pval
-			display surface
+			screen <- getVideoSurface
+			pval <- mapRGB (surfaceGetPixelFormat screen) r' g' b'
+			fillRect screen (Just (Rect x y 1 1)) pval
+			SDL.flip screen
 
 		ray x y = calcRay eye view up fov width height x y
 
