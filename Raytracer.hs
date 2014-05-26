@@ -39,10 +39,6 @@ type Scene a = [Object a]
 
 -- Colour operations
 
-toPixel :: Colour -> PixelRGBF
-toPixel (Vec3 r g b) = PixelRGBF (f r) (f g) (f b)
-	where f = realToFrac
-
 -- https://en.wikipedia.org/wiki/Phong_lighting
 phongLighting :: Vec3
 	-> Vec3
@@ -51,21 +47,22 @@ phongLighting :: Vec3
 	-> [Light]
 	-> Colour
 	-> Colour
-phongLighting p e (Phong kd ks shin) n ls amb =
-	foldl' combine (kd &! amb) ls
+phongLighting point eye (Phong kd ks shininess) normal lights ambient =
+	trunc $ foldl' combine (ks &! ambient) lights -- (&!) : point-wise multiplcation
 	where
+	trunc (Vec3 r g b) = (Vec3 r' g' b') where [r',g',b'] = map (min 1.0) [r,g,b]
 	combine :: Colour -> Light -> Colour
-	combine col (Point lp lc)
-		| l &. n' < 0 = col
-		| r &. v < 0 = col &+ df
-		| otherwise  = col &+ df &+ ds
+	combine colour (Point lpoint lcolour) -- A light has a point and a colour (RGB intensities)
+		| light_vec &. normal_vec < 0 = colour
+		| reflection &. eye_vec < 0 = colour &+ diffuse_val
+		| otherwise  = colour &+ diffuse_val &+ specular_val
 		where
-		df = ((l &. n') *& (kd &! lc))
-		ds = (((r &. v) ** shin) *& (ks &! lc))
-		v = normalize $ e &- p -- direction from point to eye
-		l = normalize $ lp &- p -- direction from point to light
-		r = reflect n l
-		n' = fromNormal n
+		diffuse_val = ((light_vec &. normal_vec) *& (kd &! lcolour))
+		specular_val = (((reflection &. eye_vec) ** shininess) *& (ks &! lcolour))
+		eye_vec = normalize $ eye &- point -- direction from point to eye
+		light_vec = normalize $ lpoint &- point -- direction from point to light
+		reflection = reflect normal light_vec
+		normal_vec = fromNormal normal
 
 -- Ray tracing functions
 
@@ -147,6 +144,10 @@ render eye view up fov width height scene lights ambient limit name =
 		image = generateImage cast width height
 		cast x y = toPixel $ castRay (ray x y) scene lights ambient limit
 		ray x y = calcRay eye view up fov width height x y
+		toPixel :: Colour -> PixelRGBF
+		toPixel (Vec3 r g b) = PixelRGBF (f r) (f g) (f b)
+			where f = realToFrac
+
 
 -- render the scene to the screen
 renderScreen :: (Intersectable a)
@@ -199,4 +200,3 @@ renderScreen eye view up fov width height scene lights ambient limit = withInit 
 			SDL.flip screen
 
 		ray x y = calcRay eye view up fov width height x y
-
