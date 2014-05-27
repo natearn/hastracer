@@ -1,2 +1,2 @@
-It's a ray tracer written in Haskell. I also added a module which approixmates
-a sphere with a triangular mesh.
+A ray tracer written in Haskell. It also includes a module which approximates a
+sphere with a triangular mesh.
