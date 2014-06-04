@@ -17,11 +17,8 @@ data Triangle = Triangle Vec3 Vec3 Vec3 deriving Show
 data Box = Box Vec3 Vec3 deriving Show
 data Sphere = Sphere Vec3 Double deriving Show
 
-eps :: Double
-eps = 0.000001 -- adjust this as needed
-
-epsilon :: Double -> Bool
-epsilon x = x < eps && x > (-eps)
+epsilon :: Double
+epsilon = 0.000001 -- adjust this as needed
 
 vertices :: Triangle -> [Vec3]
 vertices (Triangle a b c) = [a,b,c]
@@ -33,25 +30,26 @@ onPoly :: [Vec3] -> Vec3 -> Bool
 onPoly (a:b:c:ps) x = f (a:b:c:ps ++ [a]) x
 	where
 		n = fromNormal $ normal (Triangle a b c)
-		check v1 v2 = ((v1 &- v2) &^ (x &- v2)) &. n < eps
+		check v1 v2 = ((v1 &- v2) &^ (x &- v2)) &. n < epsilon
 		f (v1:v2:vs) x = check v1 v2 && f (v2:vs) x
 		f [_] _ = True
 
 inside :: Box -> Vec3 -> Bool
 inside (Box (Vec3 lx ly lz) (Vec3 ux uy uz)) (Vec3 px py pz) =
-	lx <= px + eps && px <= ux + eps &&
-	ly <= py + eps && py <= uy + eps &&
-	lz <= pz + eps && pz <= uz + eps
+	lx <= px + epsilon && px <= ux + epsilon &&
+	ly <= py + epsilon && py <= uy + epsilon &&
+	lz <= pz + epsilon && pz <= uz + epsilon
 
+-- intersection needs to ignore results that are too close to the ray origin
 instance Intersectable Plane where
 	intersection (Plane p u) (Ray o d)
-		-- | epsilon $ n &. (o &- p) = Just (o,u) -- already on the plane
-		| epsilon $ n &. (fromNormal d) = Nothing -- parellel to plane
+		| inEps 0 $ n &. (fromNormal d) = Nothing -- parellel to plane
 		| t < eps = Nothing -- can't intersect behind the ray
 		| otherwise = Just (o &+ (fromNormalRadius t d), u)
-			where
-				n = fromNormal u
-				t = ((n &. p) - (n &. o)) / (n &. (fromNormal d))
+		where
+		inEps a b = b < a + epsilon && b > a - epsilon
+		n = fromNormal u
+		t = ((n &. p) - (n &. o)) / (n &. (fromNormal d))
 
 instance Intersectable Triangle where
 	intersection t@(Triangle a b c) r = do
@@ -85,10 +83,10 @@ instance Intersectable Sphere where
 			qc = ((o &- c) &. (o &- c)) - (r^2)
 			-- this calculates the closest intersection distance that is greater than epsilon
 			isect (x,y)
-				| x < eps && y < eps = Nothing
-				| x < eps            = Just y
-				| y < eps            = Just x
-				| otherwise          = Just (minimum [x,y])
+				| x < epsilon && y < epsilon = Nothing
+				| x < epsilon = Just y
+				| y < epsilon = Just x
+				| otherwise = Just (minimum [x,y])
 
 --find the roots of a quadratic polynomial
 quadroot a b c
