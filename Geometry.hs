@@ -29,10 +29,10 @@ normal (Triangle a b c) = mkNormal $ (c &- b) &^ (a &- b)
 onPoly :: [Vec3] -> Vec3 -> Bool
 onPoly (a:b:c:ps) x = f (a:b:c:ps ++ [a]) x
 	where
-		n = fromNormal $ normal (Triangle a b c)
-		check v1 v2 = ((v1 &- v2) &^ (x &- v2)) &. n < epsilon
-		f (v1:v2:vs) x = check v1 v2 && f (v2:vs) x
-		f [_] _ = True
+	n = fromNormal $ normal (Triangle a b c)
+	check v1 v2 = ((v1 &- v2) &^ (x &- v2)) &. n < epsilon
+	f (v1:v2:vs) x = check v1 v2 && f (v2:vs) x
+	f [_] _ = True
 
 inside :: Box -> Vec3 -> Bool
 inside (Box (Vec3 lx ly lz) (Vec3 ux uy uz)) (Vec3 px py pz) =
@@ -44,7 +44,7 @@ inside (Box (Vec3 lx ly lz) (Vec3 ux uy uz)) (Vec3 px py pz) =
 instance Intersectable Plane where
 	intersection (Plane p u) (Ray o d)
 		| inEps 0 $ n &. (fromNormal d) = Nothing -- parellel to plane
-		| t < eps = Nothing -- can't intersect behind the ray
+		| t < epsilon = Nothing -- can't intersect behind the ray
 		| otherwise = Just (o &+ (fromNormalRadius t d), u)
 		where
 		inEps a b = b < a + epsilon && b > a - epsilon
@@ -62,38 +62,38 @@ instance Intersectable Box where
 		| null ts = Nothing
 		| otherwise = Just $ minimumBy f ts'
 		where
-			ts = catMaybes [
-				intersection (Plane l (mkNormal (Vec3 (-1) 0 0))) r,
-				intersection (Plane l (mkNormal (Vec3 0 (-1) 0))) r,
-				intersection (Plane l (mkNormal (Vec3 0 0 1))) r,
-				intersection (Plane u (mkNormal (Vec3 1 0 0))) r,
-				intersection (Plane u (mkNormal (Vec3 0 1 0))) r,
-				intersection (Plane u (mkNormal (Vec3 0 0 (-1)))) r
-				]
-			ts' = filter (\(x,_) -> inside b x) ts
-			f (a,_) (b,_) = compare (norm $ a &- o) (norm $ b &- o)
+		ts = catMaybes [
+			intersection (Plane l (mkNormal (Vec3 (-1) 0 0))) r,
+			intersection (Plane l (mkNormal (Vec3 0 (-1) 0))) r,
+			intersection (Plane l (mkNormal (Vec3 0 0 1))) r,
+			intersection (Plane u (mkNormal (Vec3 1 0 0))) r,
+			intersection (Plane u (mkNormal (Vec3 0 1 0))) r,
+			intersection (Plane u (mkNormal (Vec3 0 0 (-1)))) r
+			]
+		ts' = filter (\(x,_) -> inside b x) ts
+		f (a,_) (b,_) = compare (norm $ a &- o) (norm $ b &- o)
 
 instance Intersectable Sphere where
 	intersection (Sphere c r) (Ray o l) =
 		fmap (\v -> (v,mkNormal $ v &- c)) $ fmap (\d -> o &+ (fromNormalRadius d l)) $ isect =<< quadroot qa qb qc
 		where
-			v = fromNormal l
-			qa = v &. v
-			qb = 2 * (v &. (o &- c))
-			qc = ((o &- c) &. (o &- c)) - (r^2)
-			-- this calculates the closest intersection distance that is greater than epsilon
-			isect (x,y)
-				| x < epsilon && y < epsilon = Nothing
-				| x < epsilon = Just y
-				| y < epsilon = Just x
-				| otherwise = Just (minimum [x,y])
+		v = fromNormal l
+		qa = v &. v
+		qb = 2 * (v &. (o &- c))
+		qc = ((o &- c) &. (o &- c)) - (r^2)
+		-- this calculates the closest intersection distance that is greater than epsilon
+		isect (x,y)
+			| x < epsilon && y < epsilon = Nothing
+			| x < epsilon = Just y
+			| y < epsilon = Just x
+			| otherwise = Just (minimum [x,y])
 
 --find the roots of a quadratic polynomial
 quadroot a b c
 	| d < 0 = Nothing
 	| otherwise = Just (x,y)
 	where
-		x = e + sqrt d / (2 * a)
-		y = e - sqrt d / (2 * a)
-		d = b ^ 2 - (4 * a * c)
-		e = - b / (2 * a)
+	x = e + sqrt d / (2 * a)
+	y = e - sqrt d / (2 * a)
+	d = b ^ 2 - (4 * a * c)
+	e = - b / (2 * a)
